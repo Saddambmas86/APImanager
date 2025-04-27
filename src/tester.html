@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Endpoint Manager</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <nav class="navbar">
+        <a href="../index.html" class="nav-link">Home</a>
+    </nav>
+    <div class="container">
+        <header>
+            <h1>API Endpoint Manager</h1>
+            <div class="button-group">
+                <button id="theme-toggle" class="btn">Toggle Theme</button>
+                <button id="addEndpointBtn" class="btn primary">
+                    <i class="fas fa-plus"></i> Add New Endpoint
+                </button>
+                <button id="refresh-apis" class="btn secondary">Refresh APIs</button>
+                <button id="export-collection" class="btn primary">Export Collection</button>
+                <button id="import-collection" class="btn secondary">Import Collection</button>
+                <input type="file" id="import-file" style="display: none;" accept=".json">
+            </div>
+        </header>
+
+        <div class="main-content">
+            <div class="endpoints-section">
+                <div class="endpoints-list" id="endpointsList">
+                    <!-- Endpoints will be dynamically added here -->
+                </div>
+            </div>
+
+            <div class="response-panel" id="responsePanel">
+                <div class="response-header">
+                    <h2>Response</h2>
+                    <button id="clear-response" class="btn secondary">Clear</button>
+                </div>
+                <div class="response-content" id="responseContent">
+                    <div class="empty-response">
+                        <i class="fas fa-arrow-left"></i>
+                        <p>Send a request to see the response here</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Add/Edit Endpoint Modal -->
+        <div class="modal" id="endpointModal">
+            <div class="modal-overlay"></div>
+            <div class="modal-content">
+                <h2 id="modalTitle">Add New Endpoint</h2>
+                <form id="endpointForm">
+                    <div class="form-group">
+                        <label for="endpointName">Name</label>
+                        <input type="text" id="endpointName" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="httpMethod">HTTP Method</label>
+                        <select id="httpMethod" required>
+                            <option value="GET">GET</option>
+                            <option value="POST">POST</option>
+                            <option value="PUT">PUT</option>
+                            <option value="DELETE">DELETE</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="endpointUrl">URL</label>
+                        <input type="url" id="endpointUrl" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="endpointDescription">Description</label>
+                        <textarea id="endpointDescription" rows="3"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Headers</label>
+                        <div class="headers-container" id="headersContainer">
+                            <div class="header-row">
+                                <input type="text" class="header-key" placeholder="Key">
+                                <input type="text" class="header-value" placeholder="Value">
+                                <button type="button" class="btn secondary btn-sm remove-header">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <button type="button" class="btn secondary btn-sm" id="addHeaderBtn">
+                            <i class="fas fa-plus"></i> Add Header
+                        </button>
+                    </div>
+                    <div class="form-group request-body-group" id="requestBodyGroup">
+                        <label for="requestBody">Request Body</label>
+                        <textarea id="requestBody" rows="5" placeholder="Enter JSON request body"></textarea>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn secondary" id="cancelBtn">Cancel</button>
+                        <button type="submit" class="btn primary">Save</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+<script>
+// Add this to your existing script
+const refreshBtn = document.getElementById("refresh-apis");
+if (refreshBtn) {
+    refreshBtn.addEventListener("click", () => {
+        renderApiList();
+    });
+}
+</script>
+    <script src="js/script.js"></script>
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            // Prevent the init() function in script.js from running
+            window.skipExternalInit = true;
+            
+            const folders = JSON.parse(localStorage.getItem("folders")) || [];
+            const currentFolderIndex = localStorage.getItem("currentFolderIndex");
+            console.log("Folders in localStorage:", folders);
+            console.log("Current folder index in:", currentFolderIndex);
+            
+            // Debug the actual data structure
+            console.log("Full folders data structure:", JSON.stringify(folders, null, 2));
+            
+            if (folders.length === 0) {
+                alert("No folders exist. Redirecting to home page to create folders first.");
+                window.location.href = "../index.html";
+                return;
+            }
+
+            // Convert to number since localStorage stores strings
+            const folderIndex = Number(currentFolderIndex);
+            console.log("Converted folder index:", folderIndex);
+            // Check if the folder index is valid
+            if (currentFolderIndex === null || isNaN(folderIndex) || folderIndex < 0 || folderIndex >= folders.length || !folders[folderIndex]) {
+                const newIndex = 0;
+                console.log("Invalid folder index, using fallback index:", newIndex);
+                localStorage.setItem("currentFolderIndex", newIndex);
+                
+                // Reload the page to use the new index
+                window.location.reload();
+                return;
+            }
+
+            const currentFolder = folders[folderIndex];
+            console.log("Current folder object:", currentFolder);
+            
+            // Ensure the folder has an apis array
+            if (!currentFolder.apis) {
+                currentFolder.apis = [];
+                // Save the updated folder with empty apis array
+                folders[folderIndex] = currentFolder;
+                localStorage.setItem("folders", JSON.stringify(folders));
+            }
+            
+            document.querySelector("h1").textContent = `APIs for ${currentFolder.name}`;
+
+            // Render APIs for the current folder
+            const endpointsList = document.getElementById("endpointsList");
+            
+            // Debug log to check if APIs exist
+            console.log("Current folder APIs:", currentFolder.apis);
+            
+            // Function to render the API list
+            function renderApiList() {
+                if (!endpointsList) {
+                    console.error("endpointsList element not found!");
+                    return;
+                }
+                
+                if (!currentFolder.apis || currentFolder.apis.length === 0) {
+                    endpointsList.innerHTML = `
+                        <div class="empty-state">
+                            <p>No APIs added yet. Click "Add New Endpoint" to get started!</p>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                // Force refresh of the folder data from localStorage before rendering
+                const refreshedFolders = JSON.parse(localStorage.getItem("folders")) || [];
+                const refreshedFolder = refreshedFolders[folderIndex];
+                
+                if (refreshedFolder && refreshedFolder.apis && refreshedFolder.apis.length > 0) {
+                    // Use the refreshed data
+                    endpointsList.innerHTML = refreshedFolder.apis
+                        .map(
+                            (api, index) => `
+                        <div class="api-card" data-method="${api.method || 'GET'}">
+                            <h3>${api.name || 'Unnamed API'}</h3>
+                            <p>
+                                <span class="method-badge ${(api.method || 'GET').toLowerCase()}">${api.method || 'GET'}</span>
+                                ${api.url || 'No URL'}
+                            </p>
+                            ${api.description ? `<p class="api-description">${api.description}</p>` : ''}
+                            <div class="api-card-actions">
+                                <button class="btn secondary" onclick="deleteApi(${index})">
+                                    <i class="fas fa-trash"></i> Delete
+                                </button>
+                                <button class="btn primary" onclick="editApi(${index})">
+                                    <i class="fas fa-edit"></i> Edit
+                                </button>
+                                <button class="btn primary" onclick="sendRequest(${index})">
+                                    <i class="fas fa-paper-plane"></i> Send
+                                </button>
+                            </div>
+                        </div>
+                    `
+                        )
+                        .join("");
+                } else {
+                    // Fallback to the current folder data
+                    endpointsList.innerHTML = currentFolder.apis
+                        .map(
+                            (api, index) => `
+                        <div class="api-card" data-method="${api.method || 'GET'}">
+                            <h3>${api.name || 'Unnamed API'}</h3>
+                            <p>
+                                <span class="method-badge ${(api.method || 'GET').toLowerCase()}">${api.method || 'GET'}</span>
+                                ${api.url || 'No URL'}
+                            </p>
+                            ${api.description ? `<p class="api-description">${api.description}</p>` : ''}
+                            <div class="api-card-actions">
+                                <button class="btn secondary" onclick="deleteApi(${index})">
+                                    <i class="fas fa-trash"></i> Delete
+                                </button>
+                                <button class="btn primary" onclick="editApi(${index})">
+                                    <i class="fas fa-edit"></i> Edit
+                                </button>
+                                <button class="btn primary" onclick="sendRequest(${index})">
+                                    <i class="fas fa-paper-plane"></i> Send
+                                </button>
+                            </div>
+                        </div>
+                    `
+                        )
+                        .join("");
+                }
+            }
+            
+            // Call the render function
+            renderApiList();
+
+            // Set up modal functionality
+            const addEndpointBtn = document.getElementById("addEndpointBtn");
+            const endpointModal = document.getElementById("endpointModal");
+            const cancelBtn = document.getElementById("cancelBtn");
+            
+            // Show modal when Add New Endpoint is clicked
+            if (addEndpointBtn) {
+                addEndpointBtn.addEventListener("click", () => {
+                    endpointModal.style.display = "block";
+                });
+            }
+            
+            // Hide modal when Cancel is clicked
+            if (cancelBtn) {
+                cancelBtn.addEventListener("click", () => {
+                    const modal = document.getElementById("endpointModal");
+                    modal.classList.remove('show-modal');
+                    modal.style.display = "none";
+                });
+            }
+
+            // Add new API
+            const apiForm = document.getElementById("endpointForm");
+            if (apiForm) {
+                apiForm.addEventListener("submit", (e) => {
+                    e.preventDefault();
+                    const apiName = document.getElementById("endpointName").value.trim();
+                    const apiMethod = document.getElementById("httpMethod").value.trim();
+                    const apiUrl = document.getElementById("endpointUrl").value.trim();
+                    const apiDescription = document.getElementById("endpointDescription").value.trim();
+                    
+                    // Collect headers
+                    const headerRows = document.querySelectorAll('.header-row');
+                    const headers = [];
+                    
+                    headerRows.forEach(row => {
+                        const keyInput = row.querySelector('.header-key');
+                        const valueInput = row.querySelector('.header-value');
+                        
+                        if (keyInput && valueInput && keyInput.value.trim()) {
+                            headers.push({
+                                key: keyInput.value.trim(),
+                                value: valueInput.value.trim()
+                            });
+                        }
+                    });
+                    
+                    // Get request body
+                    const requestBody = document.getElementById("requestBody").value.trim();
+                    
+                    if (apiName && apiMethod && apiUrl) {
+                        // Create API object
+                        const apiObject = { 
+                            name: apiName, 
+                            method: apiMethod, 
+                            url: apiUrl,
+                            description: apiDescription,
+                            headers: headers
+                        };
+                        
+                        // Add body for non-GET/DELETE requests
+                        if (apiMethod !== 'GET' && apiMethod !== 'DELETE' && requestBody) {
+                            apiObject.body = requestBody;
+                        }
+                        
+                        // Check if we're editing or adding
+                        const editIndex = apiForm.dataset.editIndex;
+                        
+                        if (editIndex !== undefined && editIndex !== null) {
+                            // Update existing API
+                            currentFolder.apis[editIndex] = apiObject;
+                            // Clear edit index
+                            delete apiForm.dataset.editIndex;
+                            // Reset modal title
+                            document.getElementById("modalTitle").textContent = "Add New Endpoint";
+                        } else {
+                            // Add new API
+                            currentFolder.apis.push(apiObject);
+                        }
+                        
+                        // Save to localStorage
+                        folders[folderIndex] = currentFolder;
+                        localStorage.setItem("folders", JSON.stringify(folders));
+                        
+                        // Reset form
+                        apiForm.reset();
+                        
+                        // Hide the modal
+                        endpointModal.style.display = "none";
+                        
+                        // Render the updated API list
+                        renderApiList();
+                    } else {
+                        alert("Please fill in all required fields.");
+                    }
+                });
+            }
+
+            // Delete API
+            window.deleteApi = (apiIndex) => {
+                if (confirm("Are you sure you want to delete this API?")) {
+                    currentFolder.apis.splice(apiIndex, 1);
+                    folders[currentFolderIndex] = currentFolder;
+                    localStorage.setItem("folders", JSON.stringify(folders));
+                    renderApiList();
+                }
+            };
+
+            // View API
+            window.viewApi = (apiIndex) => {
+                const api = currentFolder.apis[apiIndex];
+                alert(`Viewing API: ${api.name}\nMethod: ${api.method}\nURL: ${api.url}`);
+            };
+
+            // Send Request
+            window.sendRequest = async (apiIndex) => {
+                const api = currentFolder.apis[apiIndex];
+                const responsePanel = document.getElementById("responsePanel");
+                const responseContent = document.getElementById("responseContent");
+                
+                // Show loading state
+                responseContent.innerHTML = `
+                    <div class="loading-response">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        <p>Sending request to ${api.url}...</p>
+                    </div>
+                `;
+                
+                // Make sure response panel is visible
+                responsePanel.style.display = "block";
+                
+                try {
+                    // Prepare headers
+                    const headers = new Headers();
+                    if (api.headers && Array.isArray(api.headers)) {
+                        api.headers.forEach(header => {
+                            if (header.key && header.value) {
+                                headers.append(header.key, header.value);
+                            }
+                        });
+                    }
+                    
+                    // Prepare request options
+                    const options = {
+                        method: api.method,
+                        headers: headers,
+                        mode: 'cors'
+                    };
+                    
+                    // Add body for non-GET/DELETE requests
+                    if (api.method !== 'GET' && api.method !== 'DELETE' && api.body) {
+                        options.body = api.body;
+                    }
+                    
+                    // Send the request
+                    const response = await fetch(api.url, options);
+                    const contentType = response.headers.get("content-type");
+                    
+                    // Handle different response types
+                    let responseData;
+                    let formattedResponse;
+                    
+                    if (contentType && contentType.includes("application/json")) {
+                        responseData = await response.json();
+                        formattedResponse = JSON.stringify(responseData, null, 2);
+                    } else {
+                        responseData = await response.text();
+                        formattedResponse = responseData;
+                    }
+                    
+                    // Display the response
+                    responseContent.innerHTML = `
+                        <div class="response-info">
+                            <p><strong>Status:</strong> ${response.status} ${response.statusText}</p>
+                            <p><strong>Time:</strong> ${new Date().toLocaleTimeString()}</p>
+                        </div>
+                        <pre class="response-data">${formattedResponse}</pre>
+                    `;
+                } catch (error) {
+                    // Display error
+                    responseContent.innerHTML = `
+                        <div class="response-error">
+                            <p><strong>Error:</strong> ${error.message}</p>
+                        </div>
+                    `;
+                }
+            };
+
+            // Edit API
+            window.editApi = (apiIndex) => {
+                console.log("Edit API called for index:", apiIndex);
+                const api = currentFolder.apis[apiIndex];
+                console.log("API object to edit:", api);
+                
+                // Set modal title to indicate editing
+                document.getElementById("modalTitle").textContent = "Edit Endpoint";
+                
+                // Populate form fields with API data
+                document.getElementById("endpointName").value = api.name || '';
+                document.getElementById("httpMethod").value = api.method || 'GET';
+                document.getElementById("endpointUrl").value = api.url || '';
+                document.getElementById("endpointDescription").value = api.description || '';
+                console.log("Form fields populated with API data");
+                
+                // Handle headers if they exist
+                const headersContainer = document.getElementById("headersContainer");
+                headersContainer.innerHTML = ''; // Clear existing headers
+                console.log("Headers container cleared");
+                
+
+
+                
+                if (api.headers && Array.isArray(api.headers) && api.headers.length > 0) {
+                    console.log("Adding existing headers:", api.headers);
+                    api.headers.forEach(header => {
+                        const headerRow = document.createElement('div');
+                        headerRow.className = 'header-row';
+                        headerRow.innerHTML = `
+                            <input type="text" class="header-key" placeholder="Key" value="${header.key || ''}">
+                            <input type="text" class="header-value" placeholder="Value" value="${header.value || ''}">
+                            <button type="button" class="btn secondary btn-sm remove-header">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        `;
+                        headersContainer.appendChild(headerRow);
+                        
+                        // Add event listener to the remove header button
+                        const removeBtn = headerRow.querySelector('.remove-header');
+                        if (removeBtn) {
+                            removeBtn.addEventListener('click', function() {
+                                this.parentElement.remove();
+                            });
+                        }
+                    });
+                } else {
+                    console.log("No existing headers, adding empty header row");
+                    // Add a default empty header row
+                    const headerRow = document.createElement('div');
+                    headerRow.className = 'header-row';
+                    headerRow.innerHTML = `
+                        <input type="text" class="header-key" placeholder="Key">
+                        <input type="text" class="header-value" placeholder="Value">
+                        <button type="button" class="btn secondary btn-sm remove-header">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    `;
+                    headersContainer.appendChild(headerRow);
+                    
+                    // Add event listener to the remove header button
+                    const removeBtn = headerRow.querySelector('.remove-header');
+                    if (removeBtn) {
+                        removeBtn.addEventListener('click', function() {
+                            this.parentElement.remove();
+                        });
+                    }
+                }
+                
+                // Set request body if it exists
+                document.getElementById("requestBody").value = api.body || '';
+                console.log("Request body set:", api.body);
+                
+                // Show/hide request body based on method
+                const requestBodyGroup = document.getElementById("requestBodyGroup");
+                if (api.method === 'GET' || api.method === 'DELETE') {
+                    requestBodyGroup.style.display = 'none';
+                    console.log("Request body hidden for GET/DELETE method");
+                } else {
+                    requestBodyGroup.style.display = 'block';
+                    console.log("Request body shown for non-GET/DELETE method");
+                }
+                
+                // Store the index of the API being edited
+                document.getElementById("endpointForm").dataset.editIndex = apiIndex;
+                console.log("Edit index set on form:", apiIndex);
+                
+                // Show the modal - ENHANCED VISIBILITY WITH CLASS APPROACH
+                const modal = document.getElementById("endpointModal");
+                
+                // Add a class to show the modal instead of just setting display property
+                modal.classList.add('show-modal');
+                
+                // Also set the display property as a fallback
+                modal.style.display = "block";
+                
+                // Force visibility with inline styles
+                modal.style.visibility = "visible";
+                modal.style.opacity = "1";
+                
+                // Make sure the modal content is visible
+                const modalContent = modal.querySelector(".modal-content");
+                if (modalContent) {
+                    modalContent.style.visibility = "visible";
+                    modalContent.style.opacity = "1";
+                }
+                
+                console.log("Modal displayed with enhanced visibility and class approach");
+                
+                // Update HTTP method change handler to show/hide request body
+                const httpMethodSelect = document.getElementById("httpMethod");
+                httpMethodSelect.addEventListener("change", function() {
+                    const method = this.value;
+                    console.log("HTTP method changed to:", method);
+                    if (method === 'GET' || method === 'DELETE') {
+                        requestBodyGroup.style.display = 'none';
+                    } else {
+                        requestBodyGroup.style.display = 'block';
+                    }
+                });
+            };
+
+            // Test API
+            window.testApi = (apiIndex) => {
+                const api = currentFolder.apis[apiIndex];
+                
+                // Create a simple test for the API
+                const testResults = document.createElement('div');
+                testResults.className = 'test-results';
+                
+                // Basic validation tests
+                const tests = [
+                    { name: "URL is valid", result: api.url && api.url.startsWith('http') },
+                    { name: "Method is supported", result: ['GET', 'POST', 'PUT', 'DELETE'].includes(api.method) },
+                    { name: "Name is provided", result: !!api.name }
+                ];
+                
+                // Add headers validation if headers exist
+                if (api.headers && Array.isArray(api.headers) && api.headers.length > 0) {
+                    tests.push({ 
+                        name: "Headers are valid", 
+                        result: api.headers.every(h => h.key && h.value) 
+                    });
+                }
+                
+                // Add body validation for POST/PUT
+                if (api.method === 'POST' || api.method === 'PUT') {
+                    tests.push({ 
+                        name: "Request body is provided", 
+                        result: !!api.body 
+                    });
+                    
+                    // Check if body is valid JSON if it exists
+                    if (api.body) {
+                        try {
+                            JSON.parse(api.body);
+                            tests.push({ name: "Request body is valid JSON", result: true });
+                        } catch (e) {
+                            tests.push({ name: "Request body is valid JSON", result: false });
+                        }
+                    }
+                }
+                
+                // Calculate overall test result
+                const passedTests = tests.filter(test => test.result).length;
+                const totalTests = tests.length;
+                
+                // Display test results in response panel
+                const responseContent = document.getElementById("responseContent");
+                responseContent.innerHTML = `
+                    <div class="test-summary">
+                        <h3>Test Results for ${api.name}</h3>
+                        <p class="${passedTests === totalTests ? 'test-pass' : 'test-fail'}">
+                            ${passedTests} of ${totalTests} tests passed
+                        </p>
+                    </div>
+                    <div class="test-details">
+                        ${tests.map(test => `
+                            <div class="test-case ${test.result ? 'test-pass' : 'test-fail'}">
+                                <span class="test-icon">${test.result ? '✓' : '✗'}</span>
+                                <span class="test-name">${test.name}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+                
+                // Show response panel
+                document.getElementById("responsePanel").style.display = "block";
+            };
+
+            // Export Collection functionality
+            const exportBtn = document.getElementById("export-collection");
+            if (exportBtn) {
+                exportBtn.addEventListener("click", () => {
+                    // Create a JSON object with the current folder's APIs
+                    const exportData = {
+                        folderName: currentFolder.name,
+                        apis: currentFolder.apis
+                    };
+                    
+                    // Convert to JSON string
+                    const jsonString = JSON.stringify(exportData, null, 2);
+                    
+                    // Create a blob with the JSON data
+                    const blob = new Blob([jsonString], { type: "application/json" });
+                    
+                    // Create a download link
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = `${currentFolder.name.replace(/\s+/g, '_')}_apis.json`;
+                    
+                    // Trigger the download
+                    document.body.appendChild(a);
+                    a.click();
+                    
+                    // Clean up
+                    setTimeout(() => {
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                    }, 0);
+                });
+            }
+            
+            // Import Collection functionality
+            const importBtn = document.getElementById("import-collection");
+            const importFile = document.getElementById("import-file");
+            
+            if (importBtn && importFile) {
+                importBtn.addEventListener("click", () => {
+                    importFile.click();
+                });
+                
+                importFile.addEventListener("change", (event) => {
+                    const file = event.target.files[0];
+                    if (!file) return;
+                    
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        try {
+                            const importedData = JSON.parse(e.target.result);
+                            
+                            // Validate the imported data
+                            if (!importedData.apis || !Array.isArray(importedData.apis)) {
+                                throw new Error("Invalid import file format. Missing APIs array.");
+                            }
+                            
+                            // Confirm import
+                            if (confirm(`Import ${importedData.apis.length} APIs from "${importedData.folderName || 'unknown'}" collection?`)) {
+                                // Merge with existing APIs or replace them
+                                if (currentFolder.apis.length > 0 && confirm("Append to existing APIs? Click Cancel to replace all existing APIs.")) {
+                                    // Append to existing APIs
+                                    currentFolder.apis = [...currentFolder.apis, ...importedData.apis];
+                                } else {
+                                    // Replace existing APIs
+                                    currentFolder.apis = importedData.apis;
+                                }
+                                
+                                // Save to localStorage
+                                folders[folderIndex] = currentFolder;
+                                localStorage.setItem("folders", JSON.stringify(folders));
+                                
+                                // Refresh the API list
+                                renderApiList();
+                                
+                                alert("Import successful!");
+                            }
+                        } catch (error) {
+                            alert(`Import failed: ${error.message}`);
+                        }
+                        
+                        // Reset the file input
+                        importFile.value = "";
+                    };
+                    
+                    reader.readAsText(file);
+                });
+            }
+        });
+    </script>
+</body>
+</html>

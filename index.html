@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Folders</title>
+    <link rel="stylesheet" href="src/css/styles.css">
+</head>
+<body>
+    <nav class="navbar">
+        <a href="./index.html" class="nav-link">Home</a>
+    </nav>
+    <div class="api-folders">
+        <h2>API Folders</h2>
+        <button id="addFolderBtn" class="btn primary">Add New Folder</button>
+        <div class="folders-list" id="foldersList">
+            <!-- Existing folders will be dynamically added here -->
+        </div>
+    </div>
+    <!-- Modal for Adding a New Folder -->
+    <div class="modal" id="folderModal">
+        <div class="modal-overlay"></div>
+        <div class="modal-content">
+            <h2>Add New Folder</h2>
+            <form id="folderForm">
+                <div class="form-group">
+                    <label for="folderName">Folder Name</label>
+                    <input type="text" id="folderName" required>
+                </div>
+                <div class="form-group">
+                    <label for="folderDescription">Description</label>
+                    <textarea id="folderDescription" rows="3" required></textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn secondary" id="cancelFolderBtn">Cancel</button>
+                    <button type="submit" class="btn primary">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <script src="src/js/script.js"></script>
+    <script>
+        function navigateToTester(folderIndex) {
+            console.log("Navigating to tester with folder index:", folderIndex); // Debugging log
+            localStorage.setItem("currentFolderIndex", folderIndex.toString()); // Convert to string explicitly
+            window.location.href = "src/tester.html"; // Navigate to the second page
+        }
+    </script>
+</body>
+</html>

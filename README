@@ -1,0 +1,22 @@
+Prompt to Build an API Saver & Tester App
+"Create a modern web app using HTML, CSS, and JavaScript (or a JS framework like React if needed) that allows users to:
+
+Save multiple API endpoints with custom names and descriptions.
+
+Organize APIs into folders or categories.
+
+Enter HTTP method (GET, POST, PUT, DELETE).
+
+Add custom headers and request body (for POST/PUT).
+
+Send API requests directly and display the full response (status code, headers, body).
+
+Save response history for each API.
+
+Support authentication headers (e.g., Bearer tokens).
+
+Allow exporting/importing API collections as JSON.
+
+Clean, minimal UI with light/dark mode toggle.
+
+Optionally, add basic error handling and response time tracking."
