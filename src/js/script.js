@@ -703,3 +703,78 @@ window.deleteFolder = function(index) {
         renderFolders();
     }
 };
+
+
+// Export a single endpoint
+window.exportEndpoint = (apiIndex) => {
+    const api = currentFolder.apis[apiIndex];
+    
+    if (!api) {
+        alert("Endpoint not found!");
+        return;
+    }
+    
+    // Create a copy of the API object to export
+    const exportData = {
+        name: api.name || "Unnamed API",
+        method: api.method || "GET",
+        url: api.url || "",
+        description: api.description || "",
+        headers: api.headers || [],
+        body: api.body || ""
+    };
+    
+    // Convert to JSON string with pretty formatting
+    const jsonData = JSON.stringify(exportData, null, 2);
+    
+    // Create a blob with the JSON data
+    const blob = new Blob([jsonData], { type: "application/json" });
+    
+    // Create a URL for the blob
+    const url = URL.createObjectURL(blob);
+    
+    // Create a temporary link element
+    const link = document.createElement("a");
+    link.href = url;
+    
+    // Set the filename based on the API name (sanitized)
+    const filename = (api.name || "endpoint")
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, "_") + ".json";
+    
+    link.download = filename;
+    
+    // Append the link to the document
+    document.body.appendChild(link);
+    
+    // Trigger the download
+    link.click();
+    
+    // Clean up
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    
+    // Show a success message in the response panel
+    const responsePanel = document.getElementById("responsePanel");
+    const responseContent = document.getElementById("responseContent");
+    
+    responsePanel.style.display = "block";
+    responseContent.innerHTML = `
+        <div class="export-success">
+            <i class="fas fa-check-circle"></i>
+            <p>Successfully exported endpoint: <strong>${api.name || "Unnamed API"}</strong></p>
+            <pre class="export-preview">${escapeHtml(jsonData)}</pre>
+        </div>
+    `;
+};
+
+// Helper function to escape HTML in the response (if not already defined)
+function escapeHtml(unsafe) {
+    if (typeof unsafe !== 'string') return '';
+    return unsafe
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
