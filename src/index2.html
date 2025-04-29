@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Tester - Folders</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>API Tester - Folders</h1>
+            <div class="button-group">
+                <button id="theme-toggle" class="btn secondary">
+                    <i class="fas fa-moon"></i> Toggle Theme
+                </button>
+                <button id="add-folder-btn" class="btn primary">
+                    <i class="fas fa-folder-plus"></i> Add New Folder
+                </button>
+                <button id="export-all" class="btn secondary">
+                    <i class="fas fa-file-export"></i> Export All
+                </button>
+                <button id="import-all" class="btn secondary">
+                    <i class="fas fa-file-import"></i> Import
+                </button>
+                <input type="file" id="import-file" style="display: none;" accept=".json">
+            </div>
+        </header>
+
+        <div id="folders-container" class="folders-container">
+            <!-- Folders will be dynamically added here -->
+        </div>
+
+        <!-- Add/Edit Folder Modal -->
+        <div class="folder-modal" id="folderModal">
+            <div class="folder-modal-content">
+                <h2 id="folderModalTitle">Add New Folder</h2>
+                <form id="folderForm">
+                    <div class="form-group">
+                        <label for="folderName">Folder Name</label>
+                        <input type="text" id="folderName" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="folderDescription">Description (Optional)</label>
+                        <textarea id="folderDescription" rows="3"></textarea>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn secondary" id="cancelFolderBtn">Cancel</button>
+                        <button type="submit" class="btn primary">Save</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            // Theme toggle functionality
+            const themeToggle = document.getElementById("theme-toggle");
+            const body = document.body;
+            const themeIcon = themeToggle.querySelector("i");
+            
+            // Check if dark theme is stored in localStorage
+            const isDarkTheme = localStorage.getItem("darkTheme") === "true";
+            if (isDarkTheme) {
+                body.classList.add("dark-theme");
+                themeIcon.classList.remove("fa-moon");
+                themeIcon.classList.add("fa-sun");
+            }
+            
+            themeToggle.addEventListener("click", () => {
+                body.classList.toggle("dark-theme");
+                const isDark = body.classList.contains("dark-theme");
+                localStorage.setItem("darkTheme", isDark);
+                
+                // Toggle icon
+                if (isDark) {
+                    themeIcon.classList.remove("fa-moon");
+                    themeIcon.classList.add("fa-sun");
+                } else {
+                    themeIcon.classList.remove("fa-sun");
+                    themeIcon.classList.add("fa-moon");
+                }
+            });
+            
+            // Load folders from localStorage
+            const folders = JSON.parse(localStorage.getItem("folders")) || [];
+            const foldersContainer = document.getElementById("folders-container");
+            
+            // Function to render folders
+            function renderFolders() {
+                if (folders.length === 0) {
+                    foldersContainer.innerHTML = `
+                        <div class="empty-state">
+                            <i class="fas fa-folder-open"></i>
+                            <p>No folders created yet. Click "Add New Folder" to get started!</p>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                foldersContainer.innerHTML = folders.map((folder, index) => {
+                    const apiCount = folder.apis ? folder.apis.length : 0;
+                    return `
+                        <div class="folder-card" data-index="${index}" onclick="openFolder(${index})">
+                            <h3>${folder.name || 'Unnamed Folder'}</h3>
+                            <p>${folder.description || 'No description'}</p>
+                            <div class="folder-info">
+                                <span>Created: ${new Date(folder.createdAt || Date.now()).toLocaleDateString()}</span>
+                                <span class="api-count">${apiCount} API${apiCount !== 1 ? 's' : ''}</span>
+                            </div>
+                            <div class="folder-actions">
+                                <button class="btn secondary" onclick="editFolder(${index}); event.stopPropagation();">
+                                    <i class="fas fa-edit"></i> Edit
+                                </button>
+                                <button class="btn secondary" onclick="deleteFolder(${index}); event.stopPropagation();">
+                                    <i class="fas fa-trash"></i> Delete
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }).join("");
+            }
+            
+            // Initial render
+            renderFolders();
+            
+            // Add folder modal functionality
+            const addFolderBtn = document.getElementById("add-folder-btn");
+            const folderModal = document.getElementById("folderModal");
+            const cancelFolderBtn = document.getElementById("cancelFolderBtn");
+            const folderForm = document.getElementById("folderForm");
+            const folderModalTitle = document.getElementById("folderModalTitle");
+            
+            addFolderBtn.addEventListener("click", () => {
+                folderModalTitle.textContent = "Add New Folder";
+                folderForm.reset();
+                delete folderForm.dataset.editIndex;
+                folderModal.style.display = "flex";
+            });
+            
+            cancelFolderBtn.addEventListener("click", () => {
+                folderModal.style.display = "none";
+            });
+            
+            folderForm.addEventListener("submit", (e) => {
+                e.preventDefault();
+                const folderName = document.getElementById("folderName").value.trim();
+                const folderDescription = document.getElementById("folderDescription").value.trim();
+                
+                if (folderName) {
+                    const editIndex = folderForm.dataset.editIndex;
+                    
+                    if (editIndex !== undefined) {
+                        // Update existing folder
+                        folders[editIndex].name = folderName;
+                        folders[editIndex].description = folderDescription;
+                    } else {
+                        // Add new folder
+                        folders.push({
+                            name: folderName,
+                            description: folderDescription,
+                            createdAt: Date.now(),
+                            apis: []
+                        });
+                    }
+                    
+                    // Save to localStorage
+                    localStorage.setItem("folders", JSON.stringify(folders));
+                    
+                    // Hide modal and render folders
+                    folderModal.style.display = "none";
+                    renderFolders();
+                }
+            });
+            
+            // Export all functionality
+            const exportAllBtn = document.getElementById("export-all");
+            exportAllBtn.addEventListener("click", () => {
+                if (folders.length === 0) {
+                    alert("No folders to export!");
+                    return;
+                }
+                
+                const exportData = JSON.stringify(folders, null, 2);
+                const blob = new Blob([exportData], { type: "application/json" });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement("a");
+                link.href = url;
+                link.download = "api-tester-export.json";
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+            });
+            
+            // Import functionality
+            const importAllBtn = document.getElementById("import-all");
+            const importFile = document.getElementById("import-file");
+            
+            importAllBtn.addEventListener("click", () => {
+                importFile.click();
+            });
+            
+            importFile.addEventListener("change", (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    try {
+                        const importedData = JSON.parse(event.target.result);
+                        
+                        if (Array.isArray(importedData)) {
+                            if (confirm("This will replace all your current folders. Continue?")) {
+                                localStorage.setItem("folders", JSON.stringify(importedData));
+                                location.reload();
+                            }
+                        } else {
+                            alert("Invalid import file format!");
+                        }
+                    } catch (error) {
+                        alert("Error importing file: " + error.message);
+                    }
+                };
+                reader.readAsText(file);
+            });
+            
+            // Global functions for folder actions
+            window.openFolder = (index) => {
+                localStorage.setItem("currentFolderIndex", index);
+                window.location.href = "tester.html";
+            };
+            
+            window.editFolder = (index) => {
+                const folder = folders[index];
+                folderModalTitle.textContent = "Edit Folder";
+                document.getElementById("folderName").value = folder.name || "";
+                document.getElementById("folderDescription").value = folder.description || "";
+                folderForm.dataset.editIndex = index;
+                folderModal.style.display = "flex";
+            };
+            
+            window.deleteFolder = (index) => {
+                if (confirm("Are you sure you want to delete this folder and all its APIs?")) {
+                    folders.splice(index, 1);
+                    localStorage.setItem("folders", JSON.stringify(folders));
+                    renderFolders();
+                }
+            };
+        });
+    </script>
+</body>
+</html>
