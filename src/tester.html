@@ -191,11 +191,12 @@ if (refreshBtn) {
                             (api, index) => `
                         <div class="api-card" data-method="${api.method || 'GET'}">
                             <h3>${api.name || 'Unnamed API'}</h3>
-                            <p>
+                            <div class="api-method-badge">
                                 <span class="method-badge ${(api.method || 'GET').toLowerCase()}">${api.method || 'GET'}</span>
-                                ${api.url || 'No URL'}
-                            </p>
-                            ${api.description ? `<p class="api-description">${api.description}</p>` : ''}
+                            </div>
+                            <div class="api-url-wrapper">
+                                <p class="api-url">${api.url || 'No URL'}</p>
+                            </div>
                             <div class="api-card-actions">
                                 <button class="btn secondary" onclick="deleteApi(${index})">
                                     <i class="fas fa-trash"></i> Delete
@@ -205,6 +206,12 @@ if (refreshBtn) {
                                 </button>
                                 <button class="btn primary" onclick="sendRequest(${index})">
                                     <i class="fas fa-paper-plane"></i> Send
+                                </button>
+                                <button class="btn secondary" onclick="testApi(${index})">
+                                    <i class="fas fa-vial"></i> Test
+                                </button>
+                                <button class="btn secondary" onclick="exportEndpoint(${index})">
+                                    <i class="fas fa-file-export"></i> Export
                                 </button>
                             </div>
                         </div>
@@ -218,11 +225,12 @@ if (refreshBtn) {
                             (api, index) => `
                         <div class="api-card" data-method="${api.method || 'GET'}">
                             <h3>${api.name || 'Unnamed API'}</h3>
-                            <p>
+                            <div class="api-method-badge">
                                 <span class="method-badge ${(api.method || 'GET').toLowerCase()}">${api.method || 'GET'}</span>
-                                ${api.url || 'No URL'}
-                            </p>
-                            ${api.description ? `<p class="api-description">${api.description}</p>` : ''}
+                            </div>
+                            <div class="api-url-wrapper">
+                                <p class="api-url">${api.url || 'No URL'}</p>
+                            </div>
                             <div class="api-card-actions">
                                 <button class="btn secondary" onclick="deleteApi(${index})">
                                     <i class="fas fa-trash"></i> Delete
@@ -232,6 +240,12 @@ if (refreshBtn) {
                                 </button>
                                 <button class="btn primary" onclick="sendRequest(${index})">
                                     <i class="fas fa-paper-plane"></i> Send
+                                </button>
+                                <button class="btn secondary" onclick="testApi(${index})">
+                                    <i class="fas fa-vial"></i> Test
+                                </button>
+                                <button class="btn secondary" onclick="exportEndpoint(${index})">
+                                    <i class="fas fa-file-export"></i> Export
                                 </button>
                             </div>
                         </div>
@@ -555,72 +569,242 @@ if (refreshBtn) {
             };
 
             // Test API
-            window.testApi = (apiIndex) => {
+            window.testApi = async (apiIndex) => {
                 const api = currentFolder.apis[apiIndex];
-                
-                // Create a simple test for the API
-                const testResults = document.createElement('div');
-                testResults.className = 'test-results';
-                
-                // Basic validation tests
-                const tests = [
-                    { name: "URL is valid", result: api.url && api.url.startsWith('http') },
-                    { name: "Method is supported", result: ['GET', 'POST', 'PUT', 'DELETE'].includes(api.method) },
-                    { name: "Name is provided", result: !!api.name }
-                ];
-                
-                // Add headers validation if headers exist
-                if (api.headers && Array.isArray(api.headers) && api.headers.length > 0) {
-                    tests.push({ 
-                        name: "Headers are valid", 
-                        result: api.headers.every(h => h.key && h.value) 
-                    });
-                }
-                
-                // Add body validation for POST/PUT
-                if (api.method === 'POST' || api.method === 'PUT') {
-                    tests.push({ 
-                        name: "Request body is provided", 
-                        result: !!api.body 
-                    });
-                    
-                    // Check if body is valid JSON if it exists
-                    if (api.body) {
-                        try {
-                            JSON.parse(api.body);
-                            tests.push({ name: "Request body is valid JSON", result: true });
-                        } catch (e) {
-                            tests.push({ name: "Request body is valid JSON", result: false });
-                        }
-                    }
-                }
-                
-                // Calculate overall test result
-                const passedTests = tests.filter(test => test.result).length;
-                const totalTests = tests.length;
-                
-                // Display test results in response panel
+                const apiCard = document.querySelectorAll('.api-card')[apiIndex];
+                const testButton = apiCard.querySelector('button:last-child');
+                const responsePanel = document.getElementById("responsePanel");
                 const responseContent = document.getElementById("responseContent");
+                
+                // Show loading state in both button and response panel
+                testButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Testing...';
+                testButton.disabled = true;
+                
                 responseContent.innerHTML = `
-                    <div class="test-summary">
-                        <h3>Test Results for ${api.name}</h3>
-                        <p class="${passedTests === totalTests ? 'test-pass' : 'test-fail'}">
-                            ${passedTests} of ${totalTests} tests passed
-                        </p>
-                    </div>
-                    <div class="test-details">
-                        ${tests.map(test => `
-                            <div class="test-case ${test.result ? 'test-pass' : 'test-fail'}">
-                                <span class="test-icon">${test.result ? '✓' : '✗'}</span>
-                                <span class="test-name">${test.name}</span>
-                            </div>
-                        `).join('')}
+                    <div class="loading-response">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        <p>Testing API: ${api.name} (${api.method} ${api.url})...</p>
                     </div>
                 `;
                 
-                // Show response panel
-                document.getElementById("responsePanel").style.display = "block";
+                // Make sure response panel is visible
+                responsePanel.style.display = "block";
+                
+                try {
+                    // Prepare headers
+                    const headers = {};
+                    if (api.headers && api.headers.length > 0) {
+                        api.headers.forEach(header => {
+                            if (header.key) {
+                                headers[header.key] = header.value || '';
+                            }
+                        });
+                    }
+                    
+                    // Prepare request options
+                    const options = {
+                        method: api.method || 'GET',
+                        headers: headers,
+                        mode: 'cors'
+                    };
+                    
+                    // Add body for non-GET/DELETE requests
+                    if (api.method !== 'GET' && api.method !== 'DELETE' && api.body) {
+                        options.body = api.body;
+                    }
+                    
+                    // Send the request
+                    const startTime = new Date().getTime();
+                    const response = await fetch(api.url, options);
+                    const endTime = new Date().getTime();
+                    const responseTime = endTime - startTime;
+                    
+                    // Check if status code is in 200 series
+                    const isSuccess = response.status >= 200 && response.status < 300;
+                    
+                    // Update button to show result
+                    if (isSuccess) {
+                        testButton.innerHTML = '<i class="fas fa-check"></i> Pass';
+                        testButton.classList.add('test-status', 'success');
+                        testButton.classList.remove('secondary');
+                    } else {
+                        testButton.innerHTML = '<i class="fas fa-times"></i> Fail';
+                        testButton.classList.add('test-status', 'error');
+                        testButton.classList.remove('secondary');
+                    }
+                    
+                    // Add tooltip with status code
+                    testButton.title = `Status: ${response.status} ${response.statusText}`;
+                    
+                    // Handle different response types for display
+                    const contentType = response.headers.get("content-type");
+                    let responseData;
+                    let formattedResponse;
+                    
+                    if (contentType && contentType.includes("application/json")) {
+                        responseData = await response.json();
+                        formattedResponse = JSON.stringify(responseData, null, 2);
+                    } else {
+                        responseData = await response.text();
+                        formattedResponse = responseData;
+                    }
+                    
+                    // Display the test results in the response panel
+                    const statusClass = isSuccess ? 'success' : 'error';
+                    responseContent.innerHTML = `
+                        <div class="test-result ${statusClass}">
+                            <div class="status-badge ${statusClass}">
+                                ${isSuccess ? '<i class="fas fa-check-circle"></i> PASS' : '<i class="fas fa-times-circle"></i> FAIL'}
+                            </div>
+                            <div class="test-details">
+                                <p><strong>Status:</strong> <span class="status-code ${statusClass}">${response.status} ${response.statusText}</span></p>
+                                <p><strong>Response Time:</strong> ${responseTime}ms</p>
+                            </div>
+                        </div>
+                        
+                        <div class="response-section">
+                            <h4>Response Headers</h4>
+                            <pre class="response-headers">${formatHeaders(response.headers)}</pre>
+                        </div>
+                        
+                        <div class="response-section">
+                            <h4>Response Body</h4>
+                            <pre class="response-body">${escapeHtml(formattedResponse)}</pre>
+                        </div>
+                    `;
+                    
+                } catch (error) {
+                    console.error("Test failed:", error);
+                    
+                    // Update button to show error
+                    testButton.innerHTML = '<i class="fas fa-times"></i> Error';
+                    testButton.classList.add('test-status', 'error');
+                    testButton.classList.remove('secondary');
+                    testButton.title = `Error: ${error.message}`;
+                    
+                    // Display error in response panel
+                    responseContent.innerHTML = `
+                        <div class="test-result error">
+                            <div class="status-badge error">
+                                <i class="fas fa-exclamation-triangle"></i> ERROR
+                            </div>
+                            <div class="test-details">
+                                <p><strong>Error:</strong> ${error.message}</p>
+                            </div>
+                        </div>
+                        
+                        <div class="response-section">
+                            <h4>Error Details</h4>
+                            <pre class="response-error">${escapeHtml(error.stack || error.toString())}</pre>
+                        </div>
+                    `;
+                } finally {
+                    // Re-enable button
+                    testButton.disabled = false;
+                    
+                    // Reset button after 5 seconds
+                    setTimeout(() => {
+                        testButton.innerHTML = '<i class="fas fa-vial"></i> Test';
+                        testButton.classList.remove('test-status', 'success', 'error');
+                        testButton.classList.add('secondary');
+                        testButton.title = '';
+                    }, 5000);
+                }
             };
+
+
+
+            // Export a single endpoint
+window.exportEndpoint = (apiIndex) => {
+    const api = currentFolder.apis[apiIndex];
+    
+    if (!api) {
+        alert("Endpoint not found!");
+        return;
+    }
+    
+    // Create a copy of the API object to export
+    const exportData = {
+        name: api.name || "Unnamed API",
+        method: api.method || "GET",
+        url: api.url || "",
+        description: api.description || "",
+        headers: api.headers || [],
+        body: api.body || ""
+    };
+    
+    // Convert to JSON string with pretty formatting
+    const jsonData = JSON.stringify(exportData, null, 2);
+    
+    // Create a blob with the JSON data
+    const blob = new Blob([jsonData], { type: "application/json" });
+    
+    // Create a URL for the blob
+    const url = URL.createObjectURL(blob);
+    
+    // Create a temporary link element
+    const link = document.createElement("a");
+    link.href = url;
+    
+    // Set the filename based on the API name (sanitized)
+    const filename = (api.name || "endpoint")
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, "_") + ".json";
+    
+    link.download = filename;
+    
+    // Append the link to the document
+    document.body.appendChild(link);
+    
+    // Trigger the download
+    link.click();
+    
+    // Clean up
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    
+    // Show a success message in the response panel
+    const responsePanel = document.getElementById("responsePanel");
+    const responseContent = document.getElementById("responseContent");
+    
+    responsePanel.style.display = "block";
+    responseContent.innerHTML = `
+        <div class="export-success">
+            <i class="fas fa-check-circle"></i>
+            <p>Successfully exported endpoint: <strong>${api.name || "Unnamed API"}</strong></p>
+            <pre class="export-preview">${escapeHtml(jsonData)}</pre>
+        </div>
+    `;
+};
+
+// Helper function to escape HTML in the response (if not already defined)
+function escapeHtml(unsafe) {
+    if (typeof unsafe !== 'string') return '';
+    return unsafe
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+            // Helper function to format response headers
+            function formatHeaders(headers) {
+                let result = '';
+                headers.forEach((value, key) => {
+                    result += `${key}: ${value}\n`;
+                });
+                return result;
+            }
+
+            // Helper function to escape HTML in the response
+            function escapeHtml(unsafe) {
+                return unsafe
+                    .replace(/&/g, "&amp;")
+                    .replace(/</g, "&lt;")
+                    .replace(/>/g, "&gt;")
+                    .replace(/"/g, "&quot;")
+                    .replace(/'/g, "&#039;");
+            }
 
             // Export Collection functionality
             const exportBtn = document.getElementById("export-collection");
