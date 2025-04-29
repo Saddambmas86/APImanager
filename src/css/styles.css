@@ -1484,3 +1484,97 @@ header h1 {
     display: block;
     max-width: 100%;
 }
+
+.api-card {
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 16px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    transition: transform 0.2s, box-shadow 0.2s;
+    border-left: 4px solid #4a90e2;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden; /* Prevent content from spilling out */
+}
+
+/* URL wrapper to handle long URLs */
+.api-url-wrapper {
+    margin-bottom: 12px;
+    width: 100%;
+    overflow: hidden;
+}
+
+.api-url {
+    margin: 0;
+    color: #555;
+    font-size: 14px;
+    word-wrap: break-word;
+    word-break: break-all;
+    overflow-wrap: break-word;
+    white-space: normal;
+    max-width: 100%;
+    display: block;
+}
+
+/* Test button styles */
+.btn.test-status {
+    transition: background-color 0.3s, color 0.3s;
+}
+
+.btn.test-status.success {
+    background-color: var(--get-color);
+    color: white;
+}
+
+.btn.test-status.error {
+    background-color: var(--delete-color);
+    color: white;
+}
+
+
+.api-card {
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 16px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    transition: transform 0.2s, box-shadow 0.2s;
+    border-left: 4px solid #4a90e2;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* API Card Actions - Adjust for the new export button */
+.api-card-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+/* Export Success Message */
+.export-success {
+    background-color: #f0f8f0;
+    border-left: 4px solid #4caf50;
+    padding: 12px;
+    margin-bottom: 16px;
+    border-radius: 4px;
+}
+
+.export-success i {
+    color: #4caf50;
+    margin-right: 8px;
+}
+
+.export-preview {
+    background-color: #f5f5f5;
+    padding: 12px;
+    border-radius: 4px;
+    margin-top: 12px;
+    max-height: 200px;
+    overflow-y: auto;
+    font-size: 12px;
+    white-space: pre-wrap;
+}
